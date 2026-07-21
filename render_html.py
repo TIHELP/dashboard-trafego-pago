@@ -265,13 +265,13 @@ function normalizarNomeUnidade(nome) {{
   return nome.split(/\\s+/).join(" ");
 }}
 
-function faturamentoRealDoPeriodo(unidade, inicio, fim) {{
+function faturamentoRealDoPeriodo(unidade, inicio, fim, plataforma) {{
   const unidadeNorm = normalizarNomeUnidade(unidade);
   let total = 0;
   let d = new Date(inicio + "T00:00:00");
   const dFim = new Date(fim + "T00:00:00");
   while (d <= dFim) {{
-    const chave = `${{unidadeNorm}}|${{fmtISO(d)}}`;
+    const chave = `${{unidadeNorm}}|${{fmtISO(d)}}|${{plataforma}}`;
     total += FATURAMENTO_REAL[chave] || 0;
     d.setDate(d.getDate() + 1);
   }}
@@ -329,13 +329,12 @@ function montarSeletorDeData() {{
   document.getElementById("dataAte").addEventListener("change", render);
 }}
 
-function totalizar(linhas, unidade, inicio, fim) {{
+function totalizar(linhas, unidade, inicio, fim, plataforma) {{
   const inv = linhas.reduce((s, r) => s + r.investimento, 0);
   const leads = linhas.reduce((s, r) => s + r.leads, 0);
-  // Faturamento vem das vendas reais (planilha/CRM), não da conversão que o Meta/Google reportam —
-  // não dá pra saber qual canal gerou a venda, então o mesmo total de vendas da unidade aparece
-  // nos dois cards (ROAS "combinado" por canal).
-  const fat = faturamentoRealDoPeriodo(unidade, inicio, fim);
+  // Faturamento vem das vendas reais (planilha/CRM), filtrado pelo contact_source de cada venda:
+  // só entra no card do Meta o que veio de Facebook/Instagram, e no do Google só o que veio de Google.
+  const fat = faturamentoRealDoPeriodo(unidade, inicio, fim, plataforma);
   return {{
     investimento: inv, leads: leads, faturamento: fat,
     cpl: leads ? inv / leads : 0,
@@ -368,7 +367,7 @@ function cardPlataforma(plataforma, linhasPlataforma, inicio, fim) {{
   let totalGeral = {{ investimento: 0, leads: 0, faturamento: 0 }};
   for (const unidade of unidades) {{
     const linhasUnidade = linhasPlataforma.filter(r => r.unidade === unidade);
-    const tot = totalizar(linhasUnidade, unidade, inicio, fim);
+    const tot = totalizar(linhasUnidade, unidade, inicio, fim, plataforma);
     linhasHtml += linhaHtml(unidade, tot, false);
     totalGeral.investimento += tot.investimento;
     totalGeral.leads += tot.leads;

@@ -233,16 +233,34 @@ def upsert_faturamento(registros: list[dict]) -> int:
     return len(linhas)
 
 
+def classificar_plataforma_por_contact_source(contact_source: str) -> str | None:
+    """Decide se uma venda conta pra ROAS do Meta ou do Google, com base no contact_source
+    (campo que o time de vendas preenche). Vendas de outras origens (Fachada, Já era cliente,
+    Indicação de amigo, etc.) não entram no ROAS de nenhuma das duas — não vieram de anúncio."""
+    if not contact_source:
+        return None
+    texto = contact_source.strip().lower()
+    if "facebook" in texto or "instagram" in texto:
+        return "Meta"
+    if "google" in texto:
+        return "Google"
+    return None
+
+
 def load_faturamento_por_unidade_dia() -> dict:
-    """Retorna {"UNIDADE_NORMALIZADA|2026-07-02": net_value_total} pra somar no relatório
-    (chave em string, pronta pra virar JSON e ser usada no front)."""
+    """Retorna {"UNIDADE_NORMALIZADA|2026-07-02|Meta": net_value_total} pra somar no relatório
+    (chave em string, pronta pra virar JSON e ser usada no front). Só entram vendas cujo
+    contact_source indica que vieram do Meta (Facebook/Instagram) ou do Google."""
     with _conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute("SELECT franchise_name, data, net_value FROM faturamento")
+            cur.execute("SELECT franchise_name, data, net_value, contact_source FROM faturamento")
             rows = cur.fetchall()
 
     totais = {}
     for r in rows:
-        chave = f"{normalizar_nome_unidade(r['franchise_name'])}|{r['data'].isoformat()}"
+        plataforma = classificar_plataforma_por_contact_source(r["contact_source"])
+        if plataforma is None:
+            continue
+        chave = f"{normalizar_nome_unidade(r['franchise_name'])}|{r['data'].isoformat()}|{plataforma}"
         totais[chave] = totais.get(chave, 0.0) + r["net_value"]
     return totais
