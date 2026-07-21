@@ -234,7 +234,8 @@ def upsert_faturamento(registros: list[dict]) -> int:
 
 
 def load_faturamento_por_unidade_dia() -> dict:
-    """Retorna {(unidade_normalizada, data_iso): net_value_total} pra somar no relatório."""
+    """Retorna {"UNIDADE_NORMALIZADA|2026-07-02": net_value_total} pra somar no relatório
+    (chave em string, pronta pra virar JSON e ser usada no front)."""
     with _conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute("SELECT franchise_name, data, net_value FROM faturamento")
@@ -242,6 +243,6 @@ def load_faturamento_por_unidade_dia() -> dict:
 
     totais = {}
     for r in rows:
-        chave = (normalizar_nome_unidade(r["franchise_name"]), r["data"].isoformat())
+        chave = f"{normalizar_nome_unidade(r['franchise_name'])}|{r['data'].isoformat()}"
         totais[chave] = totais.get(chave, 0.0) + r["net_value"]
     return totais

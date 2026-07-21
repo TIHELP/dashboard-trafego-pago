@@ -15,7 +15,7 @@ load_dotenv()  # lê .env na pasta do projeto (só localmente — na Vercel as e
 from flask import Flask, render_template_string, request, redirect, url_for, session, flash, Response  # noqa: E402
 from werkzeug.security import generate_password_hash, check_password_hash  # noqa: E402
 
-from db import load_config, save_config, load_all, upsert_faturamento  # noqa: E402
+from db import load_config, save_config, load_all, upsert_faturamento, load_faturamento_por_unidade_dia  # noqa: E402
 from pipeline import atualizar_periodo  # noqa: E402
 from render_html import render_report  # noqa: E402
 
@@ -370,7 +370,7 @@ function setPeriodo(tipo) {
 @app.route("/relatorio")
 @login_obrigatorio
 def ver_relatorio():
-    return render_report(load_all())
+    return render_report(load_all(), load_faturamento_por_unidade_dia())
 
 
 if __name__ == "__main__":

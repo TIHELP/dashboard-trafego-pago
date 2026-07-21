@@ -254,6 +254,29 @@ TEMPLATE = """<!doctype html>
 
 <script>
 const DADOS = {dados_json};
+const FATURAMENTO_REAL = {faturamento_json};
+
+function normalizarNomeUnidade(nome) {{
+  if (!nome) return "";
+  nome = nome.trim().toUpperCase();
+  for (const prefixo of ["HELP MULTAS - ", "HELP MULTAS "]) {{
+    if (nome.startsWith(prefixo)) {{ nome = nome.slice(prefixo.length); break; }}
+  }}
+  return nome.split(/\\s+/).join(" ");
+}}
+
+function faturamentoRealDoPeriodo(unidade, inicio, fim) {{
+  const unidadeNorm = normalizarNomeUnidade(unidade);
+  let total = 0;
+  let d = new Date(inicio + "T00:00:00");
+  const dFim = new Date(fim + "T00:00:00");
+  while (d <= dFim) {{
+    const chave = `${{unidadeNorm}}|${{fmtISO(d)}}`;
+    total += FATURAMENTO_REAL[chave] || 0;
+    d.setDate(d.getDate() + 1);
+  }}
+  return total;
+}}
 
 function fmtMoeda(v) {{
   return "R$ " + v.toLocaleString("pt-BR", {{minimumFractionDigits: 2, maximumFractionDigits: 2}});
@@ -306,10 +329,13 @@ function montarSeletorDeData() {{
   document.getElementById("dataAte").addEventListener("change", render);
 }}
 
-function totalizar(linhas) {{
+function totalizar(linhas, unidade, inicio, fim) {{
   const inv = linhas.reduce((s, r) => s + r.investimento, 0);
   const leads = linhas.reduce((s, r) => s + r.leads, 0);
-  const fat = linhas.reduce((s, r) => s + r.faturamento, 0);
+  // Faturamento vem das vendas reais (planilha/CRM), não da conversão que o Meta/Google reportam —
+  // não dá pra saber qual canal gerou a venda, então o mesmo total de vendas da unidade aparece
+  // nos dois cards (ROAS "combinado" por canal).
+  const fat = faturamentoRealDoPeriodo(unidade, inicio, fim);
   return {{
     investimento: inv, leads: leads, faturamento: fat,
     cpl: leads ? inv / leads : 0,
@@ -334,17 +360,22 @@ function linhaHtml(unidade, m, isTotal) {{
   </tr>`;
 }}
 
-function cardPlataforma(plataforma, linhasPlataforma) {{
+function cardPlataforma(plataforma, linhasPlataforma, inicio, fim) {{
   const cls = plataforma === "Meta" ? "meta" : "google";
   const unidades = [...new Set(linhasPlataforma.map(r => r.unidade))];
 
   let linhasHtml = "";
+  let totalGeral = {{ investimento: 0, leads: 0, faturamento: 0 }};
   for (const unidade of unidades) {{
     const linhasUnidade = linhasPlataforma.filter(r => r.unidade === unidade);
-    const tot = totalizar(linhasUnidade);
+    const tot = totalizar(linhasUnidade, unidade, inicio, fim);
     linhasHtml += linhaHtml(unidade, tot, false);
+    totalGeral.investimento += tot.investimento;
+    totalGeral.leads += tot.leads;
+    totalGeral.faturamento += tot.faturamento;
   }}
-  const totalGeral = totalizar(linhasPlataforma);
+  totalGeral.cpl = totalGeral.leads ? totalGeral.investimento / totalGeral.leads : 0;
+  totalGeral.roas = totalGeral.investimento ? totalGeral.faturamento / totalGeral.investimento : 0;
   linhasHtml += linhaHtml("TOTAL DO PERÍODO", totalGeral, true);
 
   return `<div class="plataforma-card ${{cls}}">
@@ -383,8 +414,8 @@ function render() {{
   const google = doPeriodo.filter(r => r.plataforma === "Google");
 
   let html = '<div class="colunas">';
-  html += meta.length ? cardPlataforma("Meta", meta) : '<div class="plataforma-card meta"><h2><span class="dot"></span>Meta</h2><div class="vazio">Sem dados.</div></div>';
-  html += google.length ? cardPlataforma("Google", google) : '<div class="plataforma-card google"><h2><span class="dot"></span>Google</h2><div class="vazio">Sem dados.</div></div>';
+  html += meta.length ? cardPlataforma("Meta", meta, inicio, fim) : '<div class="plataforma-card meta"><h2><span class="dot"></span>Meta</h2><div class="vazio">Sem dados.</div></div>';
+  html += google.length ? cardPlataforma("Google", google, inicio, fim) : '<div class="plataforma-card google"><h2><span class="dot"></span>Google</h2><div class="vazio">Sem dados.</div></div>';
   html += '</div>';
 
   cont.innerHTML = html;
@@ -456,5 +487,8 @@ ajustarOffsetCabecalho();
 """
 
 
-def render_report(linhas: list[dict]) -> str:
-    return TEMPLATE.format(dados_json=json.dumps(linhas, ensure_ascii=False))
+def render_report(linhas: list[dict], faturamento_por_unidade_dia: dict | None = None) -> str:
+    return TEMPLATE.format(
+        dados_json=json.dumps(linhas, ensure_ascii=False),
+        faturamento_json=json.dumps(faturamento_por_unidade_dia or {}, ensure_ascii=False),
+    )
