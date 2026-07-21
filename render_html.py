@@ -178,6 +178,10 @@ TEMPLATE = """<!doctype html>
     letter-spacing: 0.05em; text-transform: uppercase;
     color: var(--color-text-secondary);
     border-bottom: 2px solid var(--color-border-default);
+    position: sticky;
+    top: var(--offset-cabecalho, 90px);
+    background: var(--color-surface-card);
+    z-index: 5;
   }}
   thead th:first-child {{ width: 24%; }}
   tbody td {{
@@ -433,8 +437,19 @@ function alternarApresentacao() {{
   window.addEventListener(evt, () => {{ if (apresentacaoAtiva) pararApresentacao(); }}, {{ passive: true }});
 }});
 
+function ajustarOffsetCabecalho() {{
+  const cabecalho = document.querySelector(".cabecalho");
+  if (!cabecalho) return;
+  const topGap = parseInt(getComputedStyle(cabecalho).top, 10) || 0;
+  const offset = cabecalho.offsetHeight + topGap + 4;
+  document.documentElement.style.setProperty("--offset-cabecalho", offset + "px");
+}}
+
+window.addEventListener("resize", ajustarOffsetCabecalho);
+
 montarSeletorDeData();
 render();
+ajustarOffsetCabecalho();
 </script>
 </body>
 </html>
