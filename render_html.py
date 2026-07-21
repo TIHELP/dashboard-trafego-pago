@@ -41,33 +41,35 @@ TEMPLATE = """<!doctype html>
   * {{ box-sizing: border-box; }}
   html {{ scroll-behavior: smooth; }}
   body {{
-    font: 400 16px/1.6 var(--font-body);
-    margin: 0; padding: 24px 24px 64px;
+    font: 400 clamp(15px, 0.95vw, 20px)/1.6 var(--font-body);
+    margin: 0; padding: clamp(16px, 1.6vw, 40px);
     background: var(--color-bg-page);
     color: var(--color-text-primary);
   }}
 
+  .pagina {{ max-width: 1900px; margin: 0 auto; }}
+
   .cabecalho {{
     background: var(--color-bg-inverse);
     border-radius: var(--radius-lg);
-    padding: 20px 24px;
-    margin-bottom: 20px;
+    padding: clamp(16px, 1.4vw, 30px) clamp(18px, 1.8vw, 36px);
+    margin-bottom: clamp(16px, 1.4vw, 28px);
     color: var(--color-text-on-inverse);
     box-shadow: var(--shadow-md);
     display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px;
     position: sticky; top: 12px; z-index: 10;
   }}
   .cabecalho h1 {{
-    font: 700 22px/1.25 var(--font-display);
+    font: 700 clamp(20px, 1.9vw, 34px)/1.25 var(--font-display);
     margin: 0 0 4px 0;
     letter-spacing: -0.01em;
   }}
-  .cabecalho .subtitulo {{ font-size: 12px; color: var(--blue-100); }}
+  .cabecalho .subtitulo {{ font-size: clamp(12px, 0.8vw, 16px); color: var(--blue-100); }}
 
   .controles {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
-  .controles label {{ font: 700 13px var(--font-body); color: var(--blue-100); }}
+  .controles label {{ font: 700 clamp(12px, 0.75vw, 15px) var(--font-body); color: var(--blue-100); }}
   .controles select, .controles input[type=date] {{
-    font: 600 14px var(--font-body);
+    font: 600 clamp(13px, 0.85vw, 16px) var(--font-body);
     padding: 8px 14px;
     border-radius: var(--radius-pill);
     border: none;
@@ -78,7 +80,7 @@ TEMPLATE = """<!doctype html>
   .controles select:focus, .controles input[type=date]:focus {{ outline: none; box-shadow: var(--shadow-focus); }}
   .atalhos-data {{ display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }}
   .atalhos-data button {{
-    font: 700 12px var(--font-body);
+    font: 700 clamp(11px, 0.7vw, 14px) var(--font-body);
     padding: 5px 12px;
     border-radius: var(--radius-pill);
     border: 1px solid var(--blue-600);
@@ -100,14 +102,14 @@ TEMPLATE = """<!doctype html>
     border-color: var(--yellow-500);
   }}
 
-  .atualizado {{ font-size: 12px; color: var(--blue-100); margin-top: 6px; text-align: right; }}
+  .atualizado {{ font-size: clamp(11px, 0.7vw, 14px); color: var(--blue-100); margin-top: 6px; text-align: right; }}
 
   .colunas {{
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
   }}
-  @media (max-width: 820px) {{
+  @media (max-width: 900px) {{
     .colunas {{ grid-template-columns: 1fr; }}
     .cabecalho {{ position: static; flex-direction: column; align-items: stretch; }}
     .cabecalho > div:last-child {{ width: 100%; }}
@@ -115,48 +117,85 @@ TEMPLATE = """<!doctype html>
     .controles input[type=date] {{ flex: 1; min-width: 0; }}
     .atualizado {{ text-align: left; }}
   }}
-  @media (max-width: 480px) {{
-    body {{ padding: 16px 12px 48px; }}
-    .cabecalho {{ padding: 16px 18px; }}
-    .cabecalho h1 {{ font-size: 18px; }}
-    .plataforma-card {{ padding: 14px 14px; }}
-    table {{ font-size: 12px; }}
-    thead th, tbody td {{ padding: 7px 6px; }}
+
+  /* Em telas estreitas, a tabela vira uma lista de "cartões" (rótulo + valor empilhados)
+     em vez de colunas — evita tanto scroll lateral quanto texto sobreposto. */
+  @media (max-width: 560px) {{
+    table {{ table-layout: auto; }}
+    thead {{ display: none; }}
+    tbody, tr {{ display: block; width: 100%; }}
+    tr {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px 12px;
+      padding: 14px 4px;
+      border-bottom: 1px solid var(--color-border-default);
+    }}
+    tr.total {{ border-radius: var(--radius-sm); }}
+    td {{
+      display: flex;
+      flex-direction: column;
+      padding: 0 !important;
+      border-bottom: none !important;
+    }}
+    td::before {{
+      content: attr(data-label);
+      font: 700 11px var(--font-body);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--color-text-secondary);
+      margin-bottom: 2px;
+    }}
+    td[data-label="Unidade"] {{ grid-column: 1 / -1; }}
+    td.num {{ text-align: left; }}
   }}
 
   .plataforma-card {{
+    min-width: 0;
     background: var(--color-surface-card);
     border-radius: var(--radius-lg);
-    padding: 20px 22px;
+    padding: 18px 20px;
     box-shadow: var(--shadow-sm);
     border: 1px solid var(--color-border-default);
   }}
   .plataforma-card h2 {{
-    font: 600 20px var(--font-display);
-    margin: 0 0 14px 0;
+    font: 700 16px var(--font-display);
+    margin: 0 0 12px 0;
     color: var(--color-text-primary);
     display: flex; align-items: center; gap: 10px;
   }}
   .plataforma-card h2 .dot {{
-    width: 10px; height: 10px; border-radius: 50%;
+    width: 9px; height: 9px; border-radius: 50%;
     flex-shrink: 0;
   }}
   .plataforma-card.meta h2 .dot {{ background: var(--blue-600); }}
   .plataforma-card.google h2 .dot {{ background: var(--color-danger); }}
 
-  .tabela-wrap {{ overflow-x: auto; -webkit-overflow-scrolling: touch; }}
-  table {{ border-collapse: collapse; width: 100%; font-size: 14px; min-width: 480px; }}
+  table {{ border-collapse: collapse; width: 100%; table-layout: fixed; }}
   thead th {{
-    text-align: left; padding: 8px 12px;
-    font: 700 12px var(--font-body);
-    letter-spacing: 0.06em; text-transform: uppercase;
+    text-align: left; padding: 6px 8px;
+    font: 700 10px var(--font-body);
+    letter-spacing: 0.05em; text-transform: uppercase;
     color: var(--color-text-secondary);
     border-bottom: 2px solid var(--color-border-default);
-    white-space: nowrap;
   }}
-  tbody td {{ padding: 10px 12px; border-bottom: 1px solid var(--color-border-default); white-space: nowrap; }}
+  thead th:first-child {{ width: 24%; }}
+  tbody td {{
+    padding: 8px 8px;
+    border-bottom: 1px solid var(--color-border-default);
+    font-size: 12px;
+    font-weight: 700;
+    overflow-wrap: break-word;
+  }}
+  tbody td:first-child {{ white-space: normal; }}
+  tbody td.num {{ white-space: nowrap; }}
   tbody tr:last-child td {{ border-bottom: none; }}
   td.num, th.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
+  td.num {{
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }}
 
   tr.total td {{
     font-weight: 700;
@@ -165,8 +204,8 @@ TEMPLATE = """<!doctype html>
   tr.total td:first-child {{ border-top-left-radius: var(--radius-sm); border-bottom-left-radius: var(--radius-sm); }}
   tr.total td:last-child {{ border-top-right-radius: var(--radius-sm); border-bottom-right-radius: var(--radius-sm); }}
 
-  .roas-bom {{ color: var(--color-success); font-weight: 700; }}
-  .roas-ruim {{ color: var(--color-danger); font-weight: 700; }}
+  .roas-bom {{ color: var(--color-success) !important; }}
+  .roas-ruim {{ color: var(--color-danger) !important; }}
 
   .vazio {{
     background: var(--color-surface-card);
@@ -180,6 +219,7 @@ TEMPLATE = """<!doctype html>
 </style>
 </head>
 <body>
+<div class="pagina">
 <div class="cabecalho">
   <div>
     <h1>BI · Tráfego Pago por Unidade</h1>
@@ -206,6 +246,7 @@ TEMPLATE = """<!doctype html>
 
 <div id="conteudo"></div>
 <footer>Gerado automaticamente a partir da Meta Graph API e Google Ads API.</footer>
+</div>
 
 <script>
 const DADOS = {dados_json};
@@ -280,12 +321,12 @@ function roasClasse(roas) {{
 
 function linhaHtml(unidade, m, isTotal) {{
   return `<tr${{isTotal ? ' class="total"' : ''}}>
-    <td>${{unidade}}</td>
-    <td class="num">${{fmtMoeda(m.investimento)}}</td>
-    <td class="num">${{m.leads.toFixed(0)}}</td>
-    <td class="num">${{fmtMoeda(m.cpl)}}</td>
-    <td class="num">${{fmtMoeda(m.faturamento)}}</td>
-    <td class="num ${{roasClasse(m.roas)}}">${{m.roas.toFixed(2)}}x</td>
+    <td data-label="Unidade">${{unidade}}</td>
+    <td class="num" data-label="Investimento">${{fmtMoeda(m.investimento)}}</td>
+    <td class="num" data-label="Leads">${{m.leads.toFixed(0)}}</td>
+    <td class="num" data-label="CPL">${{fmtMoeda(m.cpl)}}</td>
+    <td class="num" data-label="Faturamento">${{fmtMoeda(m.faturamento)}}</td>
+    <td class="num ${{roasClasse(m.roas)}}" data-label="ROAS">${{m.roas.toFixed(2)}}x</td>
   </tr>`;
 }}
 
@@ -304,16 +345,14 @@ function cardPlataforma(plataforma, linhasPlataforma) {{
 
   return `<div class="plataforma-card ${{cls}}">
     <h2><span class="dot"></span>${{plataforma}}</h2>
-    <div class="tabela-wrap">
-      <table>
-        <thead><tr>
-          <th>Unidade</th>
-          <th class="num">Investimento</th><th class="num">Leads</th>
-          <th class="num">CPL</th><th class="num">Faturamento</th><th class="num">ROAS</th>
-        </tr></thead>
-        <tbody>${{linhasHtml}}</tbody>
-      </table>
-    </div>
+    <table>
+      <thead><tr>
+        <th>Unidade</th>
+        <th class="num">Investimento</th><th class="num">Leads</th>
+        <th class="num">CPL</th><th class="num">Faturamento</th><th class="num">ROAS</th>
+      </tr></thead>
+      <tbody>${{linhasHtml}}</tbody>
+    </table>
   </div>`;
 }}
 
