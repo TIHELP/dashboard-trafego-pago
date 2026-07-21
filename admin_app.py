@@ -223,7 +223,7 @@ def cron():
     return Response(log, mimetype="text/plain")
 
 
-@app.route("/api/faturamento", methods=["POST"])
+@app.route("/webhook/faturamento", methods=["POST"])
 def api_faturamento():
     """Recebe o array JSON de vendas já limpo pelo n8n e grava no banco (idempotente por
     external_id). Chame com header: Authorization: Bearer <FATURAMENTO_SECRET>"""
