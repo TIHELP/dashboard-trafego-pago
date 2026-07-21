@@ -15,7 +15,7 @@ load_dotenv()  # lê .env na pasta do projeto (só localmente — na Vercel as e
 from flask import Flask, render_template_string, request, redirect, url_for, session, flash, Response  # noqa: E402
 from werkzeug.security import generate_password_hash, check_password_hash  # noqa: E402
 
-from db import load_config, save_config, load_all  # noqa: E402
+from db import load_config, save_config, load_all, upsert_faturamento  # noqa: E402
 from pipeline import atualizar_periodo  # noqa: E402
 from render_html import render_report  # noqa: E402
 
@@ -221,6 +221,27 @@ def cron():
 
     log = atualizar_periodo()
     return Response(log, mimetype="text/plain")
+
+
+@app.route("/api/faturamento", methods=["POST"])
+def api_faturamento():
+    """Recebe o array JSON de vendas já limpo pelo n8n e grava no banco (idempotente por
+    external_id). Chame com header: Authorization: Bearer <FATURAMENTO_SECRET>"""
+    esperado = os.environ.get("FATURAMENTO_SECRET")
+    recebido = request.headers.get("Authorization", "")
+    if not esperado or recebido != f"Bearer {esperado}":
+        return {"erro": "não autorizado"}, 401
+
+    registros = request.get_json(silent=True)
+    if not isinstance(registros, list):
+        return {"erro": "corpo da requisição precisa ser uma lista JSON de vendas"}, 400
+
+    try:
+        total = upsert_faturamento(registros)
+    except Exception as e:
+        return {"erro": str(e)}, 400
+
+    return {"gravados": total}, 200
 
 
 TEMPLATE_ADMIN = BASE_STYLE + """

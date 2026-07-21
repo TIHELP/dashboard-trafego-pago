@@ -48,6 +48,23 @@ CREATE TABLE IF NOT EXISTS resultados (
     atualizado_em TEXT NOT NULL,
     PRIMARY KEY (data, unidade, plataforma, campanha)
 );
+
+CREATE TABLE IF NOT EXISTS faturamento (
+    external_id BIGINT PRIMARY KEY,
+    franchise_id TEXT,
+    franchise_name TEXT NOT NULL,
+    data DATE NOT NULL,
+    client_name TEXT,
+    gross_value DOUBLE PRECISION NOT NULL,
+    surcharge DOUBLE PRECISION NOT NULL DEFAULT 0,
+    discount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    net_value DOUBLE PRECISION NOT NULL,
+    transit_authority TEXT,
+    contact_source TEXT,
+    proposal_source TEXT,
+    importado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_faturamento_data_unidade ON faturamento (data, franchise_name);
 """
 
 
@@ -150,3 +167,81 @@ def load_all() -> list[dict]:
             for r in rows:
                 r["data"] = r["data"].isoformat()
             return rows
+
+
+def normalizar_nome_unidade(nome: str) -> str:
+    """Remove o prefixo 'HELP MULTAS' e normaliza espaços/maiúsculas, pra casar o nome que vem
+    do n8n (ex: 'HELP MULTAS CACERES') com o nome cadastrado no painel (ex: 'CACERES')."""
+    if not nome:
+        return ""
+    nome = nome.strip().upper()
+    for prefixo in ("HELP MULTAS - ", "HELP MULTAS "):
+        if nome.startswith(prefixo):
+            nome = nome[len(prefixo):]
+            break
+    return " ".join(nome.split())
+
+
+def upsert_faturamento(registros: list[dict]) -> int:
+    """Grava vendas vindas do n8n (dados já limpos). Idempotente por external_id — pode
+    reenviar o mesmo lote/planilha várias vezes sem duplicar."""
+    agora = datetime.now().isoformat(timespec="seconds")
+
+    linhas = []
+    for r in registros:
+        dia, mes, ano = r["registration_date"].split("/")
+        data_iso = f"{ano}-{mes}-{dia}"
+        linhas.append((
+            r["external_id"],
+            r.get("franchise_id"),
+            r["franchise_name"],
+            data_iso,
+            r.get("client_name"),
+            float(r.get("gross_value", 0) or 0),
+            float(r.get("surcharge", 0) or 0),
+            float(r.get("discount", 0) or 0),
+            float(r.get("net_value", 0) or 0),
+            r.get("transit_authority"),
+            r.get("contact_source"),
+            r.get("proposal_source"),
+            agora,
+        ))
+
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            psycopg2.extras.execute_batch(
+                cur,
+                """INSERT INTO faturamento
+                   (external_id, franchise_id, franchise_name, data, client_name, gross_value,
+                    surcharge, discount, net_value, transit_authority, contact_source, proposal_source, importado_em)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   ON CONFLICT (external_id) DO UPDATE SET
+                       franchise_id = EXCLUDED.franchise_id,
+                       franchise_name = EXCLUDED.franchise_name,
+                       data = EXCLUDED.data,
+                       client_name = EXCLUDED.client_name,
+                       gross_value = EXCLUDED.gross_value,
+                       surcharge = EXCLUDED.surcharge,
+                       discount = EXCLUDED.discount,
+                       net_value = EXCLUDED.net_value,
+                       transit_authority = EXCLUDED.transit_authority,
+                       contact_source = EXCLUDED.contact_source,
+                       proposal_source = EXCLUDED.proposal_source,
+                       importado_em = EXCLUDED.importado_em""",
+                linhas,
+            )
+    return len(linhas)
+
+
+def load_faturamento_por_unidade_dia() -> dict:
+    """Retorna {(unidade_normalizada, data_iso): net_value_total} pra somar no relatório."""
+    with _conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("SELECT franchise_name, data, net_value FROM faturamento")
+            rows = cur.fetchall()
+
+    totais = {}
+    for r in rows:
+        chave = (normalizar_nome_unidade(r["franchise_name"]), r["data"].isoformat())
+        totais[chave] = totais.get(chave, 0.0) + r["net_value"]
+    return totais
