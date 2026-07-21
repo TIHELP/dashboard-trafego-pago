@@ -1,0 +1,22 @@
+name: Atualizar tráfego pago a cada 2h
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"   # a cada 2 horas, em ponto (UTC)
+  workflow_dispatch: {}       # permite rodar manualmente pela aba Actions do GitHub
+
+jobs:
+  chamar-cron:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota /cron do app
+        run: |
+          resposta=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "https://dashboard-trafego-pago-ten.vercel.app/cron")
+          echo "$resposta"
+          status=$(echo "$resposta" | grep -o "HTTP_STATUS:[0-9]*" | cut -d: -f2)
+          if [ "$status" != "200" ]; then
+            echo "Falhou com status $status"
+            exit 1
+          fi
