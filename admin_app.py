@@ -7,12 +7,17 @@ import os
 import secrets
 from functools import wraps
 
-from flask import Flask, render_template_string, request, redirect, url_for, session, flash, Response
-from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
 
-from db import load_config, save_config, load_all
-from pipeline import atualizar_periodo
-from render_html import render_report
+load_dotenv()  # lê .env na pasta do projeto (só localmente — na Vercel as env vars vêm do painel).
+# Precisa rodar antes dos imports abaixo, porque db.py lê DATABASE_URL assim que é importado.
+
+from flask import Flask, render_template_string, request, redirect, url_for, session, flash, Response  # noqa: E402
+from werkzeug.security import generate_password_hash, check_password_hash  # noqa: E402
+
+from db import load_config, save_config, load_all  # noqa: E402
+from pipeline import atualizar_periodo  # noqa: E402
+from render_html import render_report  # noqa: E402
 
 app = Flask(__name__)
 

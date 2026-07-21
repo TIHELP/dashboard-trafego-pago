@@ -39,9 +39,10 @@ TEMPLATE = """<!doctype html>
   }}
 
   * {{ box-sizing: border-box; }}
+  html {{ scroll-behavior: smooth; }}
   body {{
     font: 400 16px/1.6 var(--font-body);
-    margin: 0; padding: 32px 24px 64px;
+    margin: 0; padding: 24px 24px 64px;
     background: var(--color-bg-page);
     color: var(--color-text-primary);
   }}
@@ -49,18 +50,19 @@ TEMPLATE = """<!doctype html>
   .cabecalho {{
     background: var(--color-bg-inverse);
     border-radius: var(--radius-lg);
-    padding: 24px 28px;
-    margin-bottom: 24px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
     color: var(--color-text-on-inverse);
     box-shadow: var(--shadow-md);
-    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    position: sticky; top: 12px; z-index: 10;
   }}
   .cabecalho h1 {{
-    font: 700 26px/1.25 var(--font-display);
+    font: 700 22px/1.25 var(--font-display);
     margin: 0 0 4px 0;
     letter-spacing: -0.01em;
   }}
-  .cabecalho .subtitulo {{ font-size: 13px; color: var(--blue-100); }}
+  .cabecalho .subtitulo {{ font-size: 12px; color: var(--blue-100); }}
 
   .controles {{ display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
   .controles label {{ font: 700 13px var(--font-body); color: var(--blue-100); }}
@@ -83,10 +85,19 @@ TEMPLATE = """<!doctype html>
     background: transparent;
     color: var(--blue-100);
     cursor: pointer;
+    white-space: nowrap;
   }}
   .atalhos-data button:hover, .atalhos-data button.ativo {{
     background: var(--blue-700);
     color: #fff;
+  }}
+  #btnApresentacao {{
+    border-color: var(--yellow-500);
+  }}
+  #btnApresentacao.ativo {{
+    background: var(--yellow-500);
+    color: var(--blue-900);
+    border-color: var(--yellow-500);
   }}
 
   .atualizado {{ font-size: 12px; color: var(--blue-100); margin-top: 6px; text-align: right; }}
@@ -98,6 +109,19 @@ TEMPLATE = """<!doctype html>
   }}
   @media (max-width: 820px) {{
     .colunas {{ grid-template-columns: 1fr; }}
+    .cabecalho {{ position: static; flex-direction: column; align-items: stretch; }}
+    .cabecalho > div:last-child {{ width: 100%; }}
+    .controles {{ justify-content: space-between; }}
+    .controles input[type=date] {{ flex: 1; min-width: 0; }}
+    .atualizado {{ text-align: left; }}
+  }}
+  @media (max-width: 480px) {{
+    body {{ padding: 16px 12px 48px; }}
+    .cabecalho {{ padding: 16px 18px; }}
+    .cabecalho h1 {{ font-size: 18px; }}
+    .plataforma-card {{ padding: 14px 14px; }}
+    table {{ font-size: 12px; }}
+    thead th, tbody td {{ padding: 7px 6px; }}
   }}
 
   .plataforma-card {{
@@ -115,19 +139,22 @@ TEMPLATE = """<!doctype html>
   }}
   .plataforma-card h2 .dot {{
     width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0;
   }}
   .plataforma-card.meta h2 .dot {{ background: var(--blue-600); }}
   .plataforma-card.google h2 .dot {{ background: var(--color-danger); }}
 
-  table {{ border-collapse: collapse; width: 100%; font-size: 14px; }}
+  .tabela-wrap {{ overflow-x: auto; -webkit-overflow-scrolling: touch; }}
+  table {{ border-collapse: collapse; width: 100%; font-size: 14px; min-width: 480px; }}
   thead th {{
     text-align: left; padding: 8px 12px;
     font: 700 12px var(--font-body);
     letter-spacing: 0.06em; text-transform: uppercase;
     color: var(--color-text-secondary);
     border-bottom: 2px solid var(--color-border-default);
+    white-space: nowrap;
   }}
-  tbody td {{ padding: 10px 12px; border-bottom: 1px solid var(--color-border-default); }}
+  tbody td {{ padding: 10px 12px; border-bottom: 1px solid var(--color-border-default); white-space: nowrap; }}
   tbody tr:last-child td {{ border-bottom: none; }}
   td.num, th.num {{ text-align: right; font-variant-numeric: tabular-nums; }}
 
@@ -171,6 +198,7 @@ TEMPLATE = """<!doctype html>
       <button type="button" onclick="aplicarAtalho('7dias')">Últimos 7 dias</button>
       <button type="button" onclick="aplicarAtalho('mesAtual')">Mês atual</button>
       <button type="button" onclick="aplicarAtalho('tudo')">Tudo</button>
+      <button type="button" id="btnApresentacao" onclick="alternarApresentacao()">▶ Modo apresentação</button>
     </div>
     <div class="atualizado" id="atualizadoEm"></div>
   </div>
@@ -276,14 +304,16 @@ function cardPlataforma(plataforma, linhasPlataforma) {{
 
   return `<div class="plataforma-card ${{cls}}">
     <h2><span class="dot"></span>${{plataforma}}</h2>
-    <table>
-      <thead><tr>
-        <th>Unidade</th>
-        <th class="num">Investimento</th><th class="num">Leads</th>
-        <th class="num">CPL</th><th class="num">Faturamento</th><th class="num">ROAS</th>
-      </tr></thead>
-      <tbody>${{linhasHtml}}</tbody>
-    </table>
+    <div class="tabela-wrap">
+      <table>
+        <thead><tr>
+          <th>Unidade</th>
+          <th class="num">Investimento</th><th class="num">Leads</th>
+          <th class="num">CPL</th><th class="num">Faturamento</th><th class="num">ROAS</th>
+        </tr></thead>
+        <tbody>${{linhasHtml}}</tbody>
+      </table>
+    </div>
   </div>`;
 }}
 
@@ -320,6 +350,49 @@ function render() {{
   const rotuloPeriodo = inicio === fim ? inicio : `${{inicio}} a ${{fim}}`;
   document.getElementById("atualizadoEm").textContent = `Período: ${{rotuloPeriodo}} · Última atualização: ${{maisRecente.atualizado_em}}`;
 }}
+
+let apresentacaoAtiva = false;
+let apresentacaoTimer = null;
+
+function pararApresentacao() {{
+  apresentacaoAtiva = false;
+  clearInterval(apresentacaoTimer);
+  document.getElementById("btnApresentacao").classList.remove("ativo");
+  document.getElementById("btnApresentacao").textContent = "▶ Modo apresentação";
+}}
+
+function passoApresentacao() {{
+  const noFim = window.innerHeight + window.scrollY >= document.body.scrollHeight - 2;
+  if (noFim) {{
+    clearInterval(apresentacaoTimer);
+    setTimeout(() => {{
+      if (!apresentacaoAtiva) return;
+      window.scrollTo({{ top: 0, behavior: "smooth" }});
+      setTimeout(() => {{
+        if (apresentacaoAtiva) apresentacaoTimer = setInterval(passoApresentacao, 45);
+      }}, 1200);
+    }}, 4000); // pausa alguns segundos no final antes de voltar ao topo
+  }} else {{
+    window.scrollBy(0, 1);
+  }}
+}}
+
+function alternarApresentacao() {{
+  apresentacaoAtiva = !apresentacaoAtiva;
+  const btn = document.getElementById("btnApresentacao");
+  if (apresentacaoAtiva) {{
+    btn.classList.add("ativo");
+    btn.textContent = "⏸ Parar apresentação";
+    apresentacaoTimer = setInterval(passoApresentacao, 45);
+  }} else {{
+    pararApresentacao();
+  }}
+}}
+
+// qualquer interação manual do usuário cancela a rolagem automática
+["wheel", "touchstart", "keydown"].forEach(evt => {{
+  window.addEventListener(evt, () => {{ if (apresentacaoAtiva) pararApresentacao(); }}, {{ passive: true }});
+}});
 
 montarSeletorDeData();
 render();

@@ -15,8 +15,6 @@ from datetime import datetime
 import psycopg2
 import psycopg2.extras
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "")
-
 DEFAULT_CONFIG = {
     "admin_password_hash": None,
     "unidades": [],
@@ -55,12 +53,13 @@ CREATE TABLE IF NOT EXISTS resultados (
 
 @contextmanager
 def _conn():
-    if not DATABASE_URL:
+    database_url = os.environ.get("DATABASE_URL", "")
+    if not database_url:
         raise RuntimeError(
             "DATABASE_URL não configurada. Defina essa variável de ambiente com a connection "
             "string do Postgres (Vercel Postgres, Neon, Supabase, etc)."
         )
-    conn = psycopg2.connect(DATABASE_URL)
+    conn = psycopg2.connect(database_url)
     try:
         with conn.cursor() as cur:
             cur.execute(SCHEMA)

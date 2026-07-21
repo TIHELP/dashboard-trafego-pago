@@ -4,11 +4,15 @@ Uso:
     python main.py                        # atualiza somente HOJE
     python main.py 2026-07-01 2026-07-19   # backfill de um período (dia a dia)
 
-Requer DATABASE_URL configurada no ambiente, apontando pro mesmo Postgres usado no admin (Vercel).
+Requer DATABASE_URL configurada (no .env local ou no ambiente), apontando pro mesmo Postgres usado no admin (Vercel).
 """
 import sys
 
-from pipeline import atualizar_periodo
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from pipeline import atualizar_periodo  # noqa: E402
 
 
 def main():
