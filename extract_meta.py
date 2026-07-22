@@ -1,24 +1,33 @@
 """Extração de dados do Meta Ads (Graph API) por unidade."""
 import requests
 
-LEAD_ACTION_TYPES = {
-    "lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped",
-    # campanhas de WhatsApp ("Conversas por mensagem") usam esse evento em vez de "lead"
-    "onsite_conversion.messaging_conversation_started_7d",
-}
-# Nota: os tipos acima não coexistem numa mesma campanha (cada campanha otimiza para um objetivo só),
-# então somá-los não gera contagem duplicada.
-PURCHASE_ACTION_TYPES = {"purchase", "offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase"}
+# Ordem de prioridade: o Meta às vezes reporta o MESMO evento sob vários action_types ao mesmo
+# tempo (ex: "onsite_conversion.lead_grouped" é um rollup que já inclui "lead" dentro dele).
+# Por isso pegamos só o primeiro tipo que existir na lista, do mais específico pro mais genérico —
+# somar todos que batem contava o mesmo lead 2-3x.
+LEAD_ACTION_TYPES_PRIORIDADE = [
+    "onsite_conversion.messaging_conversation_started_7d",  # WhatsApp / Conversas por mensagem
+    "offsite_conversion.fb_pixel_lead",  # pixel do site
+    "lead",
+    "onsite_conversion.lead_grouped",  # rollup genérico, só usa se nada mais específico existir
+]
+PURCHASE_ACTION_TYPES_PRIORIDADE = [
+    "offsite_conversion.fb_pixel_purchase",
+    "onsite_conversion.purchase",
+    "purchase",
+]
 
 
-def _extract_value(actions, wanted_types, value_key="value"):
+def _extract_value_prioridade(actions, tipos_prioridade, value_key="value"):
+    """Pega o valor de apenas UM action_type (o primeiro da lista de prioridade que existir),
+    em vez de somar todos — evita contar o mesmo evento repetido sob nomes diferentes."""
     if not actions:
         return 0.0
-    total = 0.0
-    for a in actions:
-        if a.get("action_type") in wanted_types:
-            total += float(a.get(value_key, 0) or 0)
-    return total
+    valores = {a.get("action_type"): float(a.get(value_key, 0) or 0) for a in actions}
+    for tipo in tipos_prioridade:
+        if tipo in valores:
+            return valores[tipo]
+    return 0.0
 
 
 def get_meta_insights(ad_account_id: str, date_since: str, date_until: str,
@@ -41,8 +50,8 @@ def get_meta_insights(ad_account_id: str, date_since: str, date_until: str,
 
         for item in data.get("data", []):
             spend = float(item.get("spend", 0) or 0)
-            leads = _extract_value(item.get("actions"), LEAD_ACTION_TYPES)
-            faturamento = _extract_value(item.get("action_values"), PURCHASE_ACTION_TYPES)
+            leads = _extract_value_prioridade(item.get("actions"), LEAD_ACTION_TYPES_PRIORIDADE)
+            faturamento = _extract_value_prioridade(item.get("action_values"), PURCHASE_ACTION_TYPES_PRIORIDADE)
             cpl = spend / leads if leads else 0
             roas = faturamento / spend if spend else 0
 
