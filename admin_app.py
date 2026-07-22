@@ -21,6 +21,7 @@ from db import (  # noqa: E402
 )
 from pipeline import atualizar_periodo  # noqa: E402
 from render_html import render_report  # noqa: E402
+from render_analise import render_analise  # noqa: E402
 
 app = Flask(__name__)
 
@@ -302,7 +303,10 @@ TEMPLATE_ADMIN = BASE_STYLE + """
       <p style="margin-top:16px;"><strong>Log da execução:</strong></p>
       <pre>{{ resultado_execucao }}</pre>
     {% endif %}
-    <p style="margin-top:16px;"><a class="btn btn-secondary" href="{{ url_for('ver_relatorio') }}" target="_blank">Abrir relatório</a></p>
+    <p style="margin-top:16px;">
+      <a class="btn btn-secondary" href="{{ url_for('ver_relatorio') }}" target="_blank">📺 Abrir relatório (TV)</a>
+      <a class="btn btn-secondary" href="{{ url_for('ver_analise') }}" target="_blank">📊 Abrir análise</a>
+    </p>
   </div>
 
   <form method="post" action="{{ url_for('salvar') }}">
@@ -472,16 +476,26 @@ function setPeriodo(tipo) {
 """
 
 
-@app.route("/relatorio")
-@login_obrigatorio
-def ver_relatorio():
-    cfg = load_config()
-    nomes_faturamento = {
+def _nomes_faturamento(cfg: dict) -> dict:
+    return {
         u["unidade"]: u["nome_faturamento"]
         for u in cfg["unidades"]
         if u.get("nome_faturamento")
     }
-    return render_report(load_all(), load_faturamento_por_unidade_dia(), nomes_faturamento)
+
+
+@app.route("/relatorio")
+@login_obrigatorio
+def ver_relatorio():
+    cfg = load_config()
+    return render_report(load_all(), load_faturamento_por_unidade_dia(), _nomes_faturamento(cfg))
+
+
+@app.route("/analise")
+@login_obrigatorio
+def ver_analise():
+    cfg = load_config()
+    return render_analise(load_all(), load_faturamento_por_unidade_dia(), _nomes_faturamento(cfg))
 
 
 if __name__ == "__main__":

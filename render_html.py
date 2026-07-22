@@ -101,6 +101,17 @@ TEMPLATE = """<!doctype html>
     color: var(--blue-900);
     border-color: var(--yellow-500);
   }}
+  .link-analise {{
+    font: 700 clamp(11px, 0.7vw, 14px) var(--font-body);
+    padding: 5px 12px;
+    border-radius: var(--radius-pill);
+    border: 1px solid var(--blue-600);
+    background: transparent;
+    color: var(--blue-100);
+    text-decoration: none;
+    white-space: nowrap;
+  }}
+  .link-analise:hover {{ background: var(--blue-700); color: #fff; }}
 
   .atualizado {{ font-size: clamp(11px, 0.7vw, 14px); color: var(--blue-100); margin-top: 6px; text-align: right; }}
 
@@ -243,6 +254,7 @@ TEMPLATE = """<!doctype html>
       <button type="button" onclick="aplicarAtalho('mesAtual')">Mês atual</button>
       <button type="button" onclick="aplicarAtalho('tudo')">Tudo</button>
       <button type="button" id="btnApresentacao" onclick="alternarApresentacao()">▶ Modo apresentação</button>
+      <a href="/analise" class="link-analise">📊 Ver análise</a>
     </div>
     <div class="atualizado" id="atualizadoEm"></div>
   </div>
