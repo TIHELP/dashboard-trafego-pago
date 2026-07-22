@@ -255,6 +255,7 @@ TEMPLATE = """<!doctype html>
 <script>
 const DADOS = {dados_json};
 const FATURAMENTO_REAL = {faturamento_json};
+const NOMES_FATURAMENTO = {nomes_faturamento_json};
 
 function normalizarNomeUnidade(nome) {{
   if (!nome) return "";
@@ -266,7 +267,11 @@ function normalizarNomeUnidade(nome) {{
 }}
 
 function faturamentoRealDoPeriodo(unidade, inicio, fim, plataforma) {{
-  const unidadeNorm = normalizarNomeUnidade(unidade);
+  // Se a unidade tiver um "nome no Agiliza" diferente cadastrado no painel, usa ele pra
+  // cruzar com as vendas — em vez do próprio nome da unidade (útil quando o sistema de
+  // vendas usa um nome genérico/diferente do nome da unidade nos anúncios).
+  const nomeParaCruzar = NOMES_FATURAMENTO[unidade] || unidade;
+  const unidadeNorm = normalizarNomeUnidade(nomeParaCruzar);
   let total = 0;
   let d = new Date(inicio + "T00:00:00");
   const dFim = new Date(fim + "T00:00:00");
@@ -493,8 +498,13 @@ ajustarOffsetCabecalho();
 """
 
 
-def render_report(linhas: list[dict], faturamento_por_unidade_dia: dict | None = None) -> str:
+def render_report(
+    linhas: list[dict],
+    faturamento_por_unidade_dia: dict | None = None,
+    nomes_faturamento: dict | None = None,
+) -> str:
     return TEMPLATE.format(
         dados_json=json.dumps(linhas, ensure_ascii=False),
         faturamento_json=json.dumps(faturamento_por_unidade_dia or {}, ensure_ascii=False),
+        nomes_faturamento_json=json.dumps(nomes_faturamento or {}, ensure_ascii=False),
     )

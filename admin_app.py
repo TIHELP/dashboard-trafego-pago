@@ -80,7 +80,7 @@ BASE_STYLE = """
   .btn-primary:hover { background:var(--yellow-600); }
   .btn-secondary { background:var(--gray-100); color:var(--blue-900); }
   .btn-danger { background:var(--danger-bg); color:var(--danger); }
-  .unidade-row { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:10px; align-items:start; margin-bottom:6px; }
+  .unidade-row { display:grid; grid-template-columns:1fr 1fr 1fr 1fr auto; gap:10px; align-items:start; margin-bottom:6px; }
   .flash { padding:12px 16px; border-radius:10px; margin-bottom:16px; font-size:14px; }
   .flash.ok { background:var(--success-bg); color:var(--success); }
   .flash.erro { background:var(--danger-bg); color:var(--danger); }
@@ -171,14 +171,16 @@ def salvar():
     nomes = request.form.getlist("unidade_nome")
     metas = request.form.getlist("unidade_meta")
     googles = request.form.getlist("unidade_google")
+    nomes_faturamento = request.form.getlist("unidade_nome_faturamento")
 
     unidades = []
-    for nome, meta_id, google_id in zip(nomes, metas, googles):
+    for nome, meta_id, google_id, nome_fat in zip(nomes, metas, googles, nomes_faturamento):
         if nome.strip():
             unidades.append({
                 "unidade": nome.strip(),
                 "meta_ad_account_id": meta_id.strip(),
                 "google_customer_id": google_id.strip(),
+                "nome_faturamento": nome_fat.strip(),
             })
     cfg["unidades"] = unidades
 
@@ -283,13 +285,16 @@ TEMPLATE_ADMIN = BASE_STYLE + """
   <form method="post" action="{{ url_for('salvar') }}">
     <div class="card">
       <h2>Unidades</h2>
-      <p class="hint">Uma linha por unidade franqueada. Deixe o campo em branco se a unidade ainda não usa aquela plataforma.</p>
+      <p class="hint">Uma linha por unidade franqueada. Deixe o campo em branco se a unidade ainda não usa aquela plataforma.
+        Preencha "Nome no Agiliza" só se o nome da franquia no sistema de vendas for diferente do nome da unidade aqui
+        (ex: a franquia aparece só como "Curitiba" no Agiliza, mas aqui ela é "Curitiba Tarumã").</p>
       <div id="listaUnidades">
         {% for u in cfg.unidades %}
         <div class="unidade-row">
           <div><label>Nome da unidade</label><input type="text" name="unidade_nome" value="{{ u.unidade }}"></div>
           <div><label>Meta Ad Account ID</label><input type="text" name="unidade_meta" value="{{ u.meta_ad_account_id }}" placeholder="act_XXXXXXXXXX"></div>
           <div><label>Google Customer ID</label><input type="text" name="unidade_google" value="{{ u.google_customer_id }}" placeholder="123-456-7890"></div>
+          <div><label>Nome no Agiliza (se diferente)</label><input type="text" name="unidade_nome_faturamento" value="{{ u.nome_faturamento or '' }}" placeholder="opcional"></div>
           <div><label>&nbsp;</label><button type="button" class="btn-danger" onclick="this.closest('.unidade-row').remove()">Remover</button></div>
         </div>
         {% endfor %}
@@ -328,6 +333,7 @@ TEMPLATE_ADMIN = BASE_STYLE + """
     <div><label>Nome da unidade</label><input type="text" name="unidade_nome"></div>
     <div><label>Meta Ad Account ID</label><input type="text" name="unidade_meta" placeholder="act_XXXXXXXXXX"></div>
     <div><label>Google Customer ID</label><input type="text" name="unidade_google" placeholder="123-456-7890"></div>
+    <div><label>Nome no Agiliza (se diferente)</label><input type="text" name="unidade_nome_faturamento" placeholder="opcional"></div>
     <div><label>&nbsp;</label><button type="button" class="btn-danger" onclick="this.closest('.unidade-row').remove()">Remover</button></div>
   </div>
 </template>
@@ -370,7 +376,13 @@ function setPeriodo(tipo) {
 @app.route("/relatorio")
 @login_obrigatorio
 def ver_relatorio():
-    return render_report(load_all(), load_faturamento_por_unidade_dia())
+    cfg = load_config()
+    nomes_faturamento = {
+        u["unidade"]: u["nome_faturamento"]
+        for u in cfg["unidades"]
+        if u.get("nome_faturamento")
+    }
+    return render_report(load_all(), load_faturamento_por_unidade_dia(), nomes_faturamento)
 
 
 if __name__ == "__main__":
