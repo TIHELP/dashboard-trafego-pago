@@ -15,7 +15,10 @@ load_dotenv()  # lê .env na pasta do projeto (só localmente — na Vercel as e
 from flask import Flask, render_template_string, request, redirect, url_for, session, flash, Response  # noqa: E402
 from werkzeug.security import generate_password_hash, check_password_hash  # noqa: E402
 
-from db import load_config, save_config, load_all, upsert_faturamento, load_faturamento_por_unidade_dia  # noqa: E402
+from db import (  # noqa: E402
+    load_config, save_config, load_all, upsert_faturamento,
+    load_faturamento_por_unidade_dia, load_nomes_franquia_faturamento,
+)
 from pipeline import atualizar_periodo  # noqa: E402
 from render_html import render_report  # noqa: E402
 
@@ -67,7 +70,7 @@ BASE_STYLE = """
   .card { background:#fff; border-radius:var(--radius-lg); padding:24px 26px; margin-bottom:20px; box-shadow:var(--shadow-sm); border:1px solid var(--gray-200); }
   .card h2 { font:600 18px var(--font-display); margin:0 0 16px; }
   label { display:block; font:700 12px var(--font-body); letter-spacing:.04em; text-transform:uppercase; color:var(--gray-700); margin-bottom:4px; }
-  input[type=text], input[type=password], input[type=date] {
+  input[type=text], input[type=password], input[type=date], select {
     width:100%; padding:10px 12px; border:1px solid var(--gray-300); border-radius:10px;
     font:400 14px var(--font-body); margin-bottom:14px;
   }
@@ -160,7 +163,8 @@ def logout():
 @login_obrigatorio
 def admin():
     cfg = load_config()
-    return render_template_string(TEMPLATE_ADMIN, cfg=cfg, resultado_execucao=None)
+    nomes_franquia = load_nomes_franquia_faturamento()
+    return render_template_string(TEMPLATE_ADMIN, cfg=cfg, resultado_execucao=None, nomes_franquia=nomes_franquia)
 
 
 @app.route("/salvar", methods=["POST"])
@@ -209,7 +213,8 @@ def rodar_agora():
     data_fim = request.form.get("data_fim", "").strip() or None
 
     log = atualizar_periodo(data_inicio, data_fim)
-    return render_template_string(TEMPLATE_ADMIN, cfg=cfg, resultado_execucao=log)
+    nomes_franquia = load_nomes_franquia_faturamento()
+    return render_template_string(TEMPLATE_ADMIN, cfg=cfg, resultado_execucao=log, nomes_franquia=nomes_franquia)
 
 
 @app.route("/cron")
@@ -294,7 +299,14 @@ TEMPLATE_ADMIN = BASE_STYLE + """
           <div><label>Nome da unidade</label><input type="text" name="unidade_nome" value="{{ u.unidade }}"></div>
           <div><label>Meta Ad Account ID</label><input type="text" name="unidade_meta" value="{{ u.meta_ad_account_id }}" placeholder="act_XXXXXXXXXX"></div>
           <div><label>Google Customer ID</label><input type="text" name="unidade_google" value="{{ u.google_customer_id }}" placeholder="123-456-7890"></div>
-          <div><label>Nome no Agiliza (se diferente)</label><input type="text" name="unidade_nome_faturamento" value="{{ u.nome_faturamento or '' }}" placeholder="opcional"></div>
+          <div><label>Franquia no Agiliza</label>
+            <select name="unidade_nome_faturamento">
+              <option value="">(usa o nome da unidade acima)</option>
+              {% for nf in nomes_franquia %}
+              <option value="{{ nf }}" {% if nf == u.nome_faturamento %}selected{% endif %}>{{ nf }}</option>
+              {% endfor %}
+            </select>
+          </div>
           <div><label>&nbsp;</label><button type="button" class="btn-danger" onclick="this.closest('.unidade-row').remove()">Remover</button></div>
         </div>
         {% endfor %}
@@ -333,7 +345,14 @@ TEMPLATE_ADMIN = BASE_STYLE + """
     <div><label>Nome da unidade</label><input type="text" name="unidade_nome"></div>
     <div><label>Meta Ad Account ID</label><input type="text" name="unidade_meta" placeholder="act_XXXXXXXXXX"></div>
     <div><label>Google Customer ID</label><input type="text" name="unidade_google" placeholder="123-456-7890"></div>
-    <div><label>Nome no Agiliza (se diferente)</label><input type="text" name="unidade_nome_faturamento" placeholder="opcional"></div>
+    <div><label>Franquia no Agiliza</label>
+      <select name="unidade_nome_faturamento">
+        <option value="">(usa o nome da unidade acima)</option>
+        {% for nf in nomes_franquia %}
+        <option value="{{ nf }}">{{ nf }}</option>
+        {% endfor %}
+      </select>
+    </div>
     <div><label>&nbsp;</label><button type="button" class="btn-danger" onclick="this.closest('.unidade-row').remove()">Remover</button></div>
   </div>
 </template>

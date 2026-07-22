@@ -264,3 +264,12 @@ def load_faturamento_por_unidade_dia() -> dict:
         chave = f"{normalizar_nome_unidade(r['franchise_name'])}|{r['data'].isoformat()}|{plataforma}"
         totais[chave] = totais.get(chave, 0.0) + r["net_value"]
     return totais
+
+
+def load_nomes_franquia_faturamento() -> list[str]:
+    """Lista os nomes de franquia (franchise_name) distintos que já apareceram nas vendas
+    importadas — usado pra popular o seletor "Nome no Agiliza" no painel de admin."""
+    with _conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT franchise_name FROM faturamento ORDER BY franchise_name")
+            return [row[0] for row in cur.fetchall()]
