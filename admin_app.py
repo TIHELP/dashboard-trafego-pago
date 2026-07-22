@@ -93,6 +93,24 @@ BASE_STYLE = """
   .periodo-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:6px; }
   .atalhos { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
   .atalhos button { font-size:12px; padding:6px 12px; }
+
+  .combo-franquia { position:relative; }
+  .combo-franquia input.combo-input { margin-bottom:0; cursor:text; }
+  .combo-franquia input.combo-input.combo-nenhuma { color:var(--danger); font-weight:700; }
+  .combo-lista {
+    display:none; position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:20;
+    background:#fff; border:1px solid var(--gray-200); border-radius:10px;
+    box-shadow:var(--shadow-md); max-height:220px; overflow-y:auto; padding:4px;
+  }
+  .combo-lista.aberta { display:block; }
+  .combo-opcao {
+    padding:8px 10px; border-radius:8px; cursor:pointer; font-size:13px;
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+  }
+  .combo-opcao:hover, .combo-opcao.destacada { background:var(--yellow-500); color:var(--blue-900); }
+  .combo-opcao.opcao-nenhuma { color:var(--danger); font-weight:700; border-bottom:1px solid var(--gray-200); margin-bottom:4px; }
+  .combo-opcao.opcao-nenhuma:hover, .combo-opcao.opcao-nenhuma.destacada { background:var(--danger-bg); color:var(--danger); }
+  .combo-vazio { padding:8px 10px; font-size:13px; color:var(--gray-700); }
 </style>
 """
 
@@ -291,21 +309,25 @@ TEMPLATE_ADMIN = BASE_STYLE + """
     <div class="card">
       <h2>Unidades</h2>
       <p class="hint">Uma linha por unidade franqueada. Deixe o campo em branco se a unidade ainda não usa aquela plataforma.
-        Preencha "Nome no Agiliza" só se o nome da franquia no sistema de vendas for diferente do nome da unidade aqui
-        (ex: a franquia aparece só como "Curitiba" no Agiliza, mas aqui ela é "Curitiba Tarumã").</p>
+        Digite pra buscar a "Franquia no Agiliza" só se o nome de vendas for diferente do nome da unidade aqui
+        (ex: a franquia aparece só como "Curitiba" no Agiliza, mas aqui ela é "Curitiba Tarumã"). Deixe em branco pra
+        continuar usando o cruzamento automático pelo nome da unidade, ou escolha "Não contabilizar" se essa unidade
+        realmente não tem registro de vendas no Agiliza.</p>
       <div id="listaUnidades">
         {% for u in cfg.unidades %}
         <div class="unidade-row">
           <div><label>Nome da unidade</label><input type="text" name="unidade_nome" value="{{ u.unidade }}"></div>
           <div><label>Meta Ad Account ID</label><input type="text" name="unidade_meta" value="{{ u.meta_ad_account_id }}" placeholder="act_XXXXXXXXXX"></div>
           <div><label>Google Customer ID</label><input type="text" name="unidade_google" value="{{ u.google_customer_id }}" placeholder="123-456-7890"></div>
-          <div><label>Franquia no Agiliza</label>
-            <select name="unidade_nome_faturamento">
-              <option value="">(usa o nome da unidade acima)</option>
-              {% for nf in nomes_franquia %}
-              <option value="{{ nf }}" {% if nf == u.nome_faturamento %}selected{% endif %}>{{ nf }}</option>
-              {% endfor %}
-            </select>
+          <div>
+            <label>Franquia no Agiliza</label>
+            <div class="combo-franquia">
+              <input type="text" class="combo-input {{ 'combo-nenhuma' if u.nome_faturamento == '__NENHUMA__' }}"
+                     autocomplete="off" placeholder="Buscar ou deixar em branco..."
+                     value="{{ 'Não contabilizar' if u.nome_faturamento == '__NENHUMA__' else (u.nome_faturamento or '') }}">
+              <input type="hidden" name="unidade_nome_faturamento" value="{{ u.nome_faturamento or '' }}">
+              <div class="combo-lista"></div>
+            </div>
           </div>
           <div><label>&nbsp;</label><button type="button" class="btn-danger" onclick="this.closest('.unidade-row').remove()">Remover</button></div>
         </div>
@@ -345,23 +367,81 @@ TEMPLATE_ADMIN = BASE_STYLE + """
     <div><label>Nome da unidade</label><input type="text" name="unidade_nome"></div>
     <div><label>Meta Ad Account ID</label><input type="text" name="unidade_meta" placeholder="act_XXXXXXXXXX"></div>
     <div><label>Google Customer ID</label><input type="text" name="unidade_google" placeholder="123-456-7890"></div>
-    <div><label>Franquia no Agiliza</label>
-      <select name="unidade_nome_faturamento">
-        <option value="">(usa o nome da unidade acima)</option>
-        {% for nf in nomes_franquia %}
-        <option value="{{ nf }}">{{ nf }}</option>
-        {% endfor %}
-      </select>
+    <div>
+      <label>Franquia no Agiliza</label>
+      <div class="combo-franquia">
+        <input type="text" class="combo-input" autocomplete="off" placeholder="Buscar ou deixar em branco...">
+        <input type="hidden" name="unidade_nome_faturamento" value="">
+        <div class="combo-lista"></div>
+      </div>
     </div>
     <div><label>&nbsp;</label><button type="button" class="btn-danger" onclick="this.closest('.unidade-row').remove()">Remover</button></div>
   </div>
 </template>
 <script>
+const NOMES_FRANQUIA = {{ nomes_franquia | tojson }};
+const VALOR_NENHUMA = "__NENHUMA__";
+
 function adicionarUnidade() {
   const tpl = document.getElementById("templateUnidadeRow");
   const clone = tpl.content.cloneNode(true);
   document.getElementById("listaUnidades").appendChild(clone);
+  document.querySelectorAll(".combo-franquia:not([data-init])").forEach(initComboFranquia);
 }
+
+function initComboFranquia(container) {
+  container.setAttribute("data-init", "1");
+  const input = container.querySelector(".combo-input");
+  const hidden = container.querySelector("input[type=hidden]");
+  const lista = container.querySelector(".combo-lista");
+
+  function renderLista(filtro) {
+    const termo = (filtro || "").trim().toLowerCase();
+    const opcoes = NOMES_FRANQUIA.filter(n => !termo || n.toLowerCase().includes(termo));
+
+    let html = '<div class="combo-opcao opcao-nenhuma" data-valor="' + VALOR_NENHUMA + '" data-texto="Não contabilizar">'
+      + '✕ Não contabilizar (essa unidade não existe no Agiliza)</div>';
+    if (opcoes.length === 0) {
+      html += '<div class="combo-vazio">Nenhuma franquia encontrada.</div>';
+    } else {
+      for (const nome of opcoes) {
+        html += '<div class="combo-opcao" data-valor="' + nome + '" data-texto="' + nome + '">' + nome + '</div>';
+      }
+    }
+    lista.innerHTML = html;
+    lista.classList.add("aberta");
+
+    lista.querySelectorAll(".combo-opcao").forEach(op => {
+      op.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        hidden.value = op.dataset.valor;
+        input.value = op.dataset.texto;
+        input.classList.toggle("combo-nenhuma", op.dataset.valor === VALOR_NENHUMA);
+        lista.classList.remove("aberta");
+      });
+    });
+  }
+
+  input.addEventListener("focus", () => renderLista(input.value === "Não contabilizar" ? "" : input.value));
+  input.addEventListener("input", () => {
+    hidden.value = "";
+    input.classList.remove("combo-nenhuma");
+    renderLista(input.value);
+  });
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      lista.classList.remove("aberta");
+      // se o texto digitado não bate com nenhuma opção escolhida, considera em branco (auto)
+      if (hidden.value === "" && input.value.trim() !== "") {
+        const match = NOMES_FRANQUIA.find(n => n.toLowerCase() === input.value.trim().toLowerCase());
+        if (match) { hidden.value = match; input.value = match; }
+        else { input.value = ""; }
+      }
+    }, 150);
+  });
+}
+
+document.querySelectorAll(".combo-franquia").forEach(initComboFranquia);
 
 function fmtISO(d) {
   return d.toISOString().slice(0, 10);

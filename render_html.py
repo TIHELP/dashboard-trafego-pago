@@ -270,7 +270,9 @@ function faturamentoRealDoPeriodo(unidade, inicio, fim, plataforma) {{
   // Se a unidade tiver um "nome no Agiliza" diferente cadastrado no painel, usa ele pra
   // cruzar com as vendas — em vez do próprio nome da unidade (útil quando o sistema de
   // vendas usa um nome genérico/diferente do nome da unidade nos anúncios).
-  const nomeParaCruzar = NOMES_FATURAMENTO[unidade] || unidade;
+  const override = NOMES_FATURAMENTO[unidade];
+  if (override === "__NENHUMA__") return 0; // marcado explicitamente como "não existe no Agiliza"
+  const nomeParaCruzar = override || unidade;
   const unidadeNorm = normalizarNomeUnidade(nomeParaCruzar);
   let total = 0;
   let d = new Date(inicio + "T00:00:00");
