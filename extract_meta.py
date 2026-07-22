@@ -1,15 +1,31 @@
 """Extração de dados do Meta Ads (Graph API) por unidade."""
 import requests
 
-# Ordem de prioridade: o Meta às vezes reporta o MESMO evento sob vários action_types ao mesmo
-# tempo (ex: "onsite_conversion.lead_grouped" é um rollup que já inclui "lead" dentro dele).
-# Por isso pegamos só o primeiro tipo que existir na lista, do mais específico pro mais genérico —
-# somar todos que batem contava o mesmo lead 2-3x.
-LEAD_ACTION_TYPES_PRIORIDADE = [
-    "onsite_conversion.messaging_conversation_started_7d",  # WhatsApp / Conversas por mensagem
-    "offsite_conversion.fb_pixel_lead",  # pixel do site
+# A coluna "Resultados" do Gerenciador de Anúncios mostra uma métrica diferente dependendo do
+# OBJETIVO da campanha (Leads, Mensagens/WhatsApp, Vendas, etc.) — não existe um action_type
+# único que sirva pra todas. Por isso mapeamos o objetivo da campanha pra métrica certa.
+MAPA_OBJETIVO_PARA_LEAD = {
+    # Geração de cadastro (formulário nativo do Meta ou pixel do site)
+    "OUTCOME_LEADS": ["lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped"],
+    "LEAD_GENERATION": ["lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped"],
+    # WhatsApp / Instagram Direct / Messenger ("Conversas por mensagem")
+    "MESSAGES": ["onsite_conversion.messaging_conversation_started_7d"],
+    "OUTCOME_ENGAGEMENT": ["onsite_conversion.messaging_conversation_started_7d", "lead", "post_engagement"],
+    # Vendas / conversões no site
+    "OUTCOME_SALES": ["offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase", "purchase", "lead"],
+    "CONVERSIONS": ["offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase", "purchase", "lead"],
+    # Tráfego / cliques no link
+    "OUTCOME_TRAFFIC": ["link_click"],
+    "LINK_CLICKS": ["link_click"],
+}
+
+# Usado só quando a campanha não tem "objective" retornado pela API (raro) ou o objetivo não
+# está no mapa acima — ordem do mais específico pro mais genérico.
+LEAD_ACTION_TYPES_PRIORIDADE_PADRAO = [
+    "onsite_conversion.messaging_conversation_started_7d",
+    "offsite_conversion.fb_pixel_lead",
     "lead",
-    "onsite_conversion.lead_grouped",  # rollup genérico, só usa se nada mais específico existir
+    "onsite_conversion.lead_grouped",
 ]
 PURCHASE_ACTION_TYPES_PRIORIDADE = [
     "offsite_conversion.fb_pixel_purchase",
@@ -32,11 +48,12 @@ def _extract_value_prioridade(actions, tipos_prioridade, value_key="value"):
 
 def get_meta_insights(ad_account_id: str, date_since: str, date_until: str,
                        access_token: str, api_version: str = "v23.0") -> list[dict]:
-    """Retorna uma linha por campanha ativa no período, com investimento, leads e faturamento."""
+    """Retorna uma linha por campanha ativa no período, com investimento, leads (= coluna
+    "Resultados" do Gerenciador, de acordo com o objetivo de cada campanha) e faturamento."""
     url = f"https://graph.facebook.com/{api_version}/{ad_account_id}/insights"
     params = {
         "level": "campaign",
-        "fields": "campaign_name,spend,actions,action_values,date_start,date_stop",
+        "fields": "campaign_name,objective,spend,actions,action_values,date_start,date_stop",
         "time_range": f'{{"since":"{date_since}","until":"{date_until}"}}',
         "access_token": access_token,
         "limit": 200,
@@ -50,7 +67,10 @@ def get_meta_insights(ad_account_id: str, date_since: str, date_until: str,
 
         for item in data.get("data", []):
             spend = float(item.get("spend", 0) or 0)
-            leads = _extract_value_prioridade(item.get("actions"), LEAD_ACTION_TYPES_PRIORIDADE)
+            objetivo = item.get("objective", "")
+            prioridade_leads = MAPA_OBJETIVO_PARA_LEAD.get(objetivo, LEAD_ACTION_TYPES_PRIORIDADE_PADRAO)
+
+            leads = _extract_value_prioridade(item.get("actions"), prioridade_leads)
             faturamento = _extract_value_prioridade(item.get("action_values"), PURCHASE_ACTION_TYPES_PRIORIDADE)
             cpl = spend / leads if leads else 0
             roas = faturamento / spend if spend else 0
