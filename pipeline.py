@@ -8,7 +8,12 @@ from extract_google import get_google_insights
 
 def datas_do_periodo(data_inicio: str | None, data_fim: str | None) -> list[str]:
     if not data_inicio:
-        return [date.today().isoformat()]
+        # Sem período informado (chamada automática do cron a cada 2h): reprocessa ontem + hoje.
+        # Evita perder dados de conversões que ocorrem perto da virada do dia (ex: rodar às 23h e
+        # só de novo à 1h — sem isso, o intervalo 23h-23h59 do dia anterior nunca seria reextraído).
+        ontem = (date.today() - timedelta(days=1)).isoformat()
+        hoje = date.today().isoformat()
+        return [ontem, hoje]
     if not data_fim:
         data_fim = data_inicio
     if data_inicio > data_fim:
