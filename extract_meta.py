@@ -1,26 +1,27 @@
 """Extração de dados do Meta Ads (Graph API) por unidade."""
 import requests
 
-# A coluna "Resultados" do Gerenciador de Anúncios mostra uma métrica diferente dependendo do
-# OBJETIVO da campanha (Leads, Mensagens/WhatsApp, Vendas, etc.) — não existe um action_type
-# único que sirva pra todas. Por isso mapeamos o objetivo da campanha pra métrica certa.
-MAPA_OBJETIVO_PARA_LEAD = {
-    # Geração de cadastro (formulário nativo do Meta ou pixel do site)
-    "OUTCOME_LEADS": ["lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped"],
+# O Meta decide o que mostrar na coluna "Resultados" com base no optimization_goal do conjunto
+# de anúncios (não do objetivo da campanha, que é mais genérico) — esse mapa reproduz a mesma
+# lógica, então funciona pra qualquer tipo de campanha sem precisar adivinhar.
+MAPA_OTIMIZACAO_PARA_RESULTADO = {
     "LEAD_GENERATION": ["lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped"],
-    # WhatsApp / Instagram Direct / Messenger ("Conversas por mensagem")
-    "MESSAGES": ["onsite_conversion.messaging_conversation_started_7d"],
-    "OUTCOME_ENGAGEMENT": ["onsite_conversion.messaging_conversation_started_7d", "lead", "post_engagement"],
-    # Vendas / conversões no site
-    "OUTCOME_SALES": ["offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase", "purchase", "lead"],
-    "CONVERSIONS": ["offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase", "purchase", "lead"],
-    # Tráfego / cliques no link
-    "OUTCOME_TRAFFIC": ["link_click"],
+    "QUALITY_LEAD": ["lead", "offsite_conversion.fb_pixel_lead", "onsite_conversion.lead_grouped"],
+    "OFFSITE_CONVERSIONS": ["offsite_conversion.fb_pixel_lead", "offsite_conversion.fb_pixel_purchase", "lead", "purchase"],
+    "ONSITE_CONVERSIONS": ["onsite_conversion.lead_grouped", "lead"],
+    "CONVERSATIONS": ["onsite_conversion.messaging_conversation_started_7d"],
+    "REPLIES": ["onsite_conversion.messaging_first_reply", "onsite_conversion.messaging_conversation_started_7d"],
     "LINK_CLICKS": ["link_click"],
+    "LANDING_PAGE_VIEWS": ["landing_page_view"],
+    "PURCHASE": ["purchase", "offsite_conversion.fb_pixel_purchase", "onsite_conversion.purchase"],
+    "APP_INSTALLS": ["mobile_app_install"],
+    "POST_ENGAGEMENT": ["post_engagement"],
+    "PAGE_LIKES": ["like"],
+    "THRUPLAY": ["video_view"],
 }
 
-# Usado só quando a campanha não tem "objective" retornado pela API (raro) ou o objetivo não
-# está no mapa acima — ordem do mais específico pro mais genérico.
+# Usado só se não conseguirmos descobrir o optimization_goal do conjunto de anúncios (ex: erro
+# de permissão na API) — ordem do mais específico pro mais genérico.
 LEAD_ACTION_TYPES_PRIORIDADE_PADRAO = [
     "onsite_conversion.messaging_conversation_started_7d",
     "offsite_conversion.fb_pixel_lead",
@@ -46,14 +47,42 @@ def _extract_value_prioridade(actions, tipos_prioridade, value_key="value"):
     return 0.0
 
 
+def _get_optimization_goal_por_campanha(ad_account_id: str, access_token: str, api_version: str) -> dict:
+    """Busca o optimization_goal de cada campanha (via os conjuntos de anúncios dela) —
+    é esse valor que decide qual métrica aparece na coluna "Resultados" do Gerenciador."""
+    url = f"https://graph.facebook.com/{api_version}/{ad_account_id}/adsets"
+    params = {"fields": "campaign_id,optimization_goal", "limit": 500, "access_token": access_token}
+
+    mapa = {}
+    while url:
+        resp = requests.get(url, params=params, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        for item in data.get("data", []):
+            campanha_id = item.get("campaign_id")
+            goal = item.get("optimization_goal")
+            if campanha_id and goal and campanha_id not in mapa:
+                mapa[campanha_id] = goal
+        paging = data.get("paging", {})
+        url = paging.get("next")
+        params = None
+
+    return mapa
+
+
 def get_meta_insights(ad_account_id: str, date_since: str, date_until: str,
                        access_token: str, api_version: str = "v23.0") -> list[dict]:
     """Retorna uma linha por campanha ativa no período, com investimento, leads (= coluna
-    "Resultados" do Gerenciador, de acordo com o objetivo de cada campanha) e faturamento."""
+    "Resultados" do Gerenciador, de acordo com o optimization_goal de cada campanha) e faturamento."""
+    try:
+        goals_por_campanha = _get_optimization_goal_por_campanha(ad_account_id, access_token, api_version)
+    except Exception:
+        goals_por_campanha = {}
+
     url = f"https://graph.facebook.com/{api_version}/{ad_account_id}/insights"
     params = {
         "level": "campaign",
-        "fields": "campaign_name,objective,spend,actions,action_values,date_start,date_stop",
+        "fields": "campaign_id,campaign_name,spend,actions,action_values,date_start,date_stop",
         "time_range": f'{{"since":"{date_since}","until":"{date_until}"}}',
         "access_token": access_token,
         "limit": 200,
@@ -67,8 +96,8 @@ def get_meta_insights(ad_account_id: str, date_since: str, date_until: str,
 
         for item in data.get("data", []):
             spend = float(item.get("spend", 0) or 0)
-            objetivo = item.get("objective", "")
-            prioridade_leads = MAPA_OBJETIVO_PARA_LEAD.get(objetivo, LEAD_ACTION_TYPES_PRIORIDADE_PADRAO)
+            goal = goals_por_campanha.get(item.get("campaign_id"))
+            prioridade_leads = MAPA_OTIMIZACAO_PARA_RESULTADO.get(goal, LEAD_ACTION_TYPES_PRIORIDADE_PADRAO)
 
             leads = _extract_value_prioridade(item.get("actions"), prioridade_leads)
             faturamento = _extract_value_prioridade(item.get("action_values"), PURCHASE_ACTION_TYPES_PRIORIDADE)
