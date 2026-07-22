@@ -290,17 +290,24 @@ function fmtISO(d) {{
   return d.toISOString().slice(0, 10);
 }}
 
+function hojeLocalISO() {{
+  const d = new Date();
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, "0");
+  const dia = String(d.getDate()).padStart(2, "0");
+  return `${{ano}}-${{mes}}-${{dia}}`;
+}}
+
 function aplicarAtalho(tipo) {{
   const datas = datasDisponiveis();
-  if (datas.length === 0) return;
-  const maisRecente = datas[datas.length - 1];
-  const hoje = new Date(maisRecente + "T00:00:00");
+  const hojeStr = hojeLocalISO();
+  const hoje = new Date(hojeStr + "T00:00:00");
   const inicio = document.getElementById("dataDe");
   const fim = document.getElementById("dataAte");
 
   if (tipo === "hoje") {{
-    inicio.value = maisRecente;
-    fim.value = maisRecente;
+    inicio.value = hojeStr;
+    fim.value = hojeStr;
   }} else if (tipo === "ontem") {{
     const d = new Date(hoje); d.setDate(d.getDate() - 1);
     inicio.value = fmtISO(d);
@@ -308,14 +315,14 @@ function aplicarAtalho(tipo) {{
   }} else if (tipo === "7dias") {{
     const d = new Date(hoje); d.setDate(d.getDate() - 6);
     inicio.value = fmtISO(d);
-    fim.value = maisRecente;
+    fim.value = hojeStr;
   }} else if (tipo === "mesAtual") {{
     const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
     inicio.value = fmtISO(primeiroDia);
-    fim.value = maisRecente;
+    fim.value = hojeStr;
   }} else if (tipo === "tudo") {{
-    inicio.value = datas[0];
-    fim.value = maisRecente;
+    inicio.value = datas.length ? datas[0] : hojeStr;
+    fim.value = hojeStr;
   }}
   render();
 }}
